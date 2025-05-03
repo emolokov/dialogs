@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Диалоги с ботом</title>
+  <title>Чат с ботом</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     body {
@@ -11,68 +11,146 @@
       margin: 0;
       padding: 0;
       background-color: #f8f8f8;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
+    
+    .header {
+      padding: 12px 16px;
+      background: #0088cc;
+      color: white;
+      font-weight: 500;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    
     .container {
       display: flex;
-      height: 100vh;
+      flex: 1;
+      overflow: hidden;
     }
+    
     .users-list {
-      width: 30%;
+      width: 35%;
       background: white;
       border-right: 1px solid #e2e2e2;
       overflow-y: auto;
     }
+    
     .dialog-container {
-      width: 70%;
+      width: 65%;
       display: flex;
       flex-direction: column;
     }
+    
     .user-item {
-      padding: 12px 16px;
-      border-bottom: 1px solid #e2e2e2;
+      padding: 14px 16px;
+      border-bottom: 1px solid #f0f0f0;
       cursor: pointer;
+      display: flex;
+      align-items: center;
     }
+    
     .user-item:hover {
       background-color: #f5f5f5;
     }
+    
     .user-item.active {
       background-color: #e3f2fd;
     }
+    
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #0088cc;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 12px;
+      font-weight: bold;
+    }
+    
+    .user-name {
+      font-weight: 500;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
     .messages {
-      flex-grow: 1;
+      flex: 1;
       padding: 16px;
       overflow-y: auto;
+      background-color: #f0f2f5;
     }
+    
     .message {
       margin-bottom: 12px;
-      max-width: 80%;
+      max-width: 85%;
+      position: relative;
     }
+    
     .user-message {
       margin-left: auto;
       background: #e3f2fd;
-      padding: 8px 12px;
+      padding: 10px 14px;
       border-radius: 12px 12px 0 12px;
+      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
     }
+    
     .bot-message {
       margin-right: auto;
       background: white;
-      padding: 8px 12px;
+      padding: 10px 14px;
       border-radius: 12px 12px 12px 0;
-      border: 1px solid #e2e2e2;
+      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
     }
-    .time {
+    
+    .message-time {
       font-size: 11px;
       color: #999;
       margin-top: 4px;
       text-align: right;
     }
+    
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #888;
+      text-align: center;
+      padding: 20px;
+    }
+    
+    .loading {
+      padding: 20px;
+      text-align: center;
+      color: #888;
+    }
   </style>
 </head>
 <body>
+  <div class="header">Диалоги с ботом</div>
+  
   <div class="container">
-    <div class="users-list" id="usersList"></div>
+    <div class="users-list" id="usersList">
+      <div class="loading">Загрузка...</div>
+    </div>
+    
     <div class="dialog-container">
-      <div class="messages" id="messagesContainer"></div>
+      <div class="messages" id="messagesContainer">
+        <div class="empty-state">
+          <p>Выберите диалог для просмотра</p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -84,22 +162,59 @@
     let dialogs = {};
     let currentUser = null;
     
-    async function loadDialogs() {
+    // Генерация аватара по первой букве имени
+    function getAvatarLetter(username) {
+      return username ? username.charAt(0).toUpperCase() : '?';
+    }
+    
+    // Форматирование времени
+    function formatTime(timestamp) {
+      if (!timestamp) return '';
       try {
-        const response = await fetch('https://airtable-proxy-worker.e92molokov.workers.dev/api/dialogs');
-        dialogs = await response.json();
-        renderUserList();
-        
-        // Если есть пользователи, показываем первого
-        const users = Object.keys(dialogs);
-        if (users.length > 0) {
-          showUserDialog(users[0]);
+        // Пытаемся разобрать разные форматы времени
+        if (timestamp.includes('.')) {
+          const [datePart, timePart] = timestamp.split(' ');
+          const [day, month, year] = datePart.split('.');
+          return `${day}.${month}.${year} ${timePart || ''}`;
         }
-      } catch (error) {
-        console.error('Error loading dialogs:', error);
+        return timestamp;
+      } catch {
+        return timestamp;
       }
     }
     
+    // Загрузка диалогов
+    async function loadDialogs() {
+      try {
+        document.getElementById('usersList').innerHTML = '<div class="loading">Загрузка диалогов...</div>';
+        
+        const response = await fetch('https://airtable-proxy-worker.e92molokov.workers.dev/api/dialogs');
+        if (!response.ok) throw new Error('Ошибка загрузки');
+        
+        dialogs = await response.json();
+        
+        if (Object.keys(dialogs).length === 0) {
+          document.getElementById('usersList').innerHTML = '<div class="empty-state">Нет диалогов</div>';
+          document.getElementById('messagesContainer').innerHTML = '<div class="empty-state">Нет данных для отображения</div>';
+          return;
+        }
+        
+        renderUserList();
+        showFirstUserDialog();
+        
+      } catch (error) {
+        console.error('Error loading dialogs:', error);
+        document.getElementById('usersList').innerHTML = '<div class="empty-state">Ошибка загрузки</div>';
+        document.getElementById('messagesContainer').innerHTML = `
+          <div class="empty-state">
+            <p>Не удалось загрузить диалоги</p>
+            <button onclick="location.reload()">Попробовать снова</button>
+          </div>
+        `;
+      }
+    }
+    
+    // Рендер списка пользователей
     function renderUserList() {
       const usersList = document.getElementById('usersList');
       usersList.innerHTML = '';
@@ -107,12 +222,24 @@
       Object.keys(dialogs).forEach(username => {
         const userItem = document.createElement('div');
         userItem.className = `user-item ${username === currentUser ? 'active' : ''}`;
-        userItem.textContent = username;
+        userItem.innerHTML = `
+          <div class="user-avatar">${getAvatarLetter(username)}</div>
+          <div class="user-name">${username}</div>
+        `;
         userItem.addEventListener('click', () => showUserDialog(username));
         usersList.appendChild(userItem);
       });
     }
     
+    // Показать первый диалог
+    function showFirstUserDialog() {
+      const users = Object.keys(dialogs);
+      if (users.length > 0) {
+        showUserDialog(users[0]);
+      }
+    }
+    
+    // Показать диалог пользователя
     function showUserDialog(username) {
       currentUser = username;
       renderUserList();
@@ -120,46 +247,46 @@
       const messagesContainer = document.getElementById('messagesContainer');
       messagesContainer.innerHTML = '';
       
+      if (!dialogs[username] || dialogs[username].length === 0) {
+        messagesContainer.innerHTML = '<div class="empty-state">Нет сообщений</div>';
+        return;
+      }
+      
       dialogs[username].forEach(msg => {
         if (msg.prompt) {
           const userMsg = document.createElement('div');
           userMsg.className = 'message user-message';
-          userMsg.textContent = msg.prompt;
-          
-          const time = document.createElement('div');
-          time.className = 'time';
-          time.textContent = formatTime(msg.time);
-          
-          userMsg.appendChild(time);
+          userMsg.innerHTML = `
+            <div class="message-text">${msg.prompt}</div>
+            <div class="message-time">${formatTime(msg.time)}</div>
+          `;
           messagesContainer.appendChild(userMsg);
         }
         
         if (msg.answer) {
           const botMsg = document.createElement('div');
           botMsg.className = 'message bot-message';
-          botMsg.textContent = msg.answer;
-          
-          const time = document.createElement('div');
-          time.className = 'time';
-          time.textContent = formatTime(msg.time);
-          
-          botMsg.appendChild(time);
+          botMsg.innerHTML = `
+            <div class="message-text">${msg.answer}</div>
+            <div class="message-time">${formatTime(msg.time)}</div>
+          `;
           messagesContainer.appendChild(botMsg);
         }
       });
       
       // Прокрутка вниз
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-    
-    function formatTime(timestamp) {
-      if (!timestamp) return '';
-      const date = new Date(timestamp);
-      return date.toLocaleString();
+      setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }, 50);
     }
     
     // Инициализация при загрузке
     document.addEventListener('DOMContentLoaded', loadDialogs);
+    
+    // Обновление при изменении размера окна
+    window.addEventListener('resize', () => {
+      if (currentUser) showUserDialog(currentUser);
+    });
   </script>
 </body>
 </html>
