@@ -88,6 +88,8 @@
       padding: 16px;
       overflow-y: auto;
       background-color: #f0f2f5;
+      display: flex;
+      flex-direction: column-reverse; /* Это ключевое изменение */
     }
     
     .message {
@@ -162,16 +164,13 @@
     let dialogs = {};
     let currentUser = null;
     
-    // Генерация аватара по первой букве имени
     function getAvatarLetter(username) {
       return username ? username.charAt(0).toUpperCase() : '?';
     }
     
-    // Форматирование времени
     function formatTime(timestamp) {
       if (!timestamp) return '';
       try {
-        // Пытаемся разобрать разные форматы времени
         if (timestamp.includes('.')) {
           const [datePart, timePart] = timestamp.split(' ');
           const [day, month, year] = datePart.split('.');
@@ -183,7 +182,6 @@
       }
     }
     
-    // Загрузка диалогов
     async function loadDialogs() {
       try {
         document.getElementById('usersList').innerHTML = '<div class="loading">Загрузка диалогов...</div>';
@@ -214,7 +212,6 @@
       }
     }
     
-    // Рендер списка пользователей
     function renderUserList() {
       const usersList = document.getElementById('usersList');
       usersList.innerHTML = '';
@@ -231,7 +228,6 @@
       });
     }
     
-    // Показать первый диалог
     function showFirstUserDialog() {
       const users = Object.keys(dialogs);
       if (users.length > 0) {
@@ -239,7 +235,6 @@
       }
     }
     
-    // Показать диалог пользователя
     function showUserDialog(username) {
       currentUser = username;
       renderUserList();
@@ -252,6 +247,11 @@
         return;
       }
       
+      // Создаем временный контейнер для правильного порядка сообщений
+      const tempContainer = document.createElement('div');
+      tempContainer.style.display = 'contents';
+      
+      // Добавляем сообщения в обратном порядке (новые будут внизу временного контейнера)
       dialogs[username].forEach(msg => {
         if (msg.prompt) {
           const userMsg = document.createElement('div');
@@ -260,7 +260,7 @@
             <div class="message-text">${msg.prompt}</div>
             <div class="message-time">${formatTime(msg.time)}</div>
           `;
-          messagesContainer.appendChild(userMsg);
+          tempContainer.appendChild(userMsg);
         }
         
         if (msg.answer) {
@@ -270,20 +270,20 @@
             <div class="message-text">${msg.answer}</div>
             <div class="message-time">${formatTime(msg.time)}</div>
           `;
-          messagesContainer.appendChild(botMsg);
+          tempContainer.appendChild(botMsg);
         }
       });
       
-      // Прокрутка вниз
+      // Добавляем временный контейнер в основной (благодаря flex-direction: column-reverse новые окажутся сверху)
+      messagesContainer.appendChild(tempContainer);
+      
+      // Прокрутка вверх (к новым сообщениям)
       setTimeout(() => {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        messagesContainer.scrollTop = 0;
       }, 50);
     }
     
-    // Инициализация при загрузке
     document.addEventListener('DOMContentLoaded', loadDialogs);
-    
-    // Обновление при изменении размера окна
     window.addEventListener('resize', () => {
       if (currentUser) showUserDialog(currentUser);
     });
