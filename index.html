@@ -86,7 +86,7 @@
     
     async function loadDialogs() {
       try {
-        const response = await fetch('https://your-worker-url.workers.dev/api/dialogs');
+        const response = await fetch('https://airtable-proxy-worker.e92molokov.workers.dev/api/dialogs');
         dialogs = await response.json();
         renderUserList();
         
